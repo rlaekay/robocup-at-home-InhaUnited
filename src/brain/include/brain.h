@@ -8,6 +8,7 @@
 #include <sensor_msgs/msg/joy.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/pose.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <vision_interface/msg/detections.hpp>
 #include <vision_interface/msg/line_segments.hpp>
 #include <vision_interface/msg/cal_param.hpp>

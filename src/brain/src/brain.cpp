@@ -267,7 +267,7 @@ void Brain::loadConfig() {
 
   get_parameter("enable_com", config->enableCom);
 
-  get_parameter("rerunLog.enable", config->rerunLogEnable);
+  // get_parameter("rerunLog.enable", config->rerunLogEnable);
   get_parameter("rerunLog.enable_tcp", config->rerunLogEnableTCP);
   get_parameter("rerunLog.server_ip", config->rerunLogServerIP);
   get_parameter("rerunLog.enable_file", config->rerunLogEnableFile);
@@ -480,14 +480,11 @@ void Brain::handleCooperation() {
                          status.ballPosToField.y - data->robotPoseToField.y);
       if (dist > RANGE_THRESHOLD) {
         log_(format(
-            "tm ball dist to me(%.1f) > threshold(%.1f), TM %d can be
-            trusted", dist, RANGE_THRESHOLD, i + 1));
+            "tm ball dist to me(%.1f) > threshold(%.1f), TM %d can be trusted", dist, RANGE_THRESHOLD, i + 1));
         minRange = status.ballRange;
         trustedTMIdx = aliveTmIdxs[i];
       } else {
-        log_(format("tm ball dist to me(%.1f) < threshold(%.1f), TM %d can
-        NOT "
-                    "be trusted",
+        log_(format("tm ball dist to me(%.1f) < threshold(%.1f), TM %d can NOT be trusted",
                     dist, RANGE_THRESHOLD, i + 1));
       }
     }
@@ -585,13 +582,10 @@ void Brain::handleCooperation() {
       data->tmCmdId += 1;
       data->tmMyCmdId = data->tmCmdId;
       tree->setEntry<string>("player_role", "striker");
-      log_(format("goalie: i am too far from goal, i ask player %d to
-      attack",
+      log_(format("goalie: i am too far from goal, i ask player %d to attack",
                   minIndex + 1));
     } else {
-      log_(format(
-          "goalie: i am close enough to goal, no need to attack, my dist:
-          %.2f", myDist));
+      log_(format("goalie: i am close enough to goal, no need to attack, my dist: %.2f", myDist));
     }
   }
 
@@ -1388,10 +1382,7 @@ void Brain::gameControlCallback(
   // log game state
   log->setTimeNow();
   log->logToScreen("tick/gamecontrol",
-                   format("Player: %d  Role: %s PrimaryStriker: %s GameState:
-                   "
-                          "%s  SubStateType: %s  SubState: %s UnderPenalty:
-                          %d " "isKickoff: %d isSubStateKickoff: %d",
+                   format("Player: %d  Role: %s primaryStriker: %s GameState: %s  SubStateType: %s  SubState: %s UnderPenalty: %d " "isKickoff: %d isSubStateKickoff: %d",
                           config->playerId,
                           tree->getEntry<string>("player_role").c_str(),
                           isPrimaryStriker() ? "Yes" : "No",
@@ -2689,9 +2680,7 @@ void Brain::logDepth(int grid_x_count, int grid_y_count,
     tree->getEntry<string>("decision"); string freeKickKickingOff =
     data->isFreekickKickingOff ? "YES" : "NO"; string directShoot =
     data->isDirectShoot ? "YES" : "NO"; string primaryStriker =
-    isPrimaryStriker() ? "YES" : "NO"; log_(format(
-        "Game State: %s, SubState: %s, SubStateType: %s, Lead: %s, Decision:
-        %s, " "FreeKickKickingOff: %s, DirectShoot: %s, PrimaryStriker: %s",
+    isPrimaryStriker() ? "YES" : "NO"; log_(format("Game State: %s, SubState: %s, SubStateType: %s, Lead: %s, Decision: %s, FreeKickKickingOff: %s, directShoot: %s, PrimaryStriker: %s",
         gameState.c_str(), gameSubState.c_str(), gameSubStateType.c_str(),
         isLead.c_str(), decision.c_str(), freeKickKickingOff.c_str(),
         directShoot.c_str(), primaryStriker.c_str()));
