@@ -1,44 +1,42 @@
 #pragma once
 
-#include <booster/robot/b1/b1_api_const.hpp>
-#include <game_controller_interface/msg/game_control_data.hpp>
-#include <geometry_msgs/msg/pose.hpp>
-#include <geometry_msgs/msg/pose_stamped.hpp>
-#include <geometry_msgs/msg/transform_stamped.hpp>
-#include <opencv2/opencv.hpp>
+#include <string>
 #include <rclcpp/rclcpp.hpp>
 #include <rerun.hpp>
-#include <sensor_msgs/msg/image.hpp>
-#include <sensor_msgs/msg/joy.hpp>
+#include <opencv2/opencv.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <string>
-#include <tf2_ros/transform_broadcaster.h>
-#include <vision_interface/msg/cal_param.hpp>
+#include <sensor_msgs/msg/joy.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <geometry_msgs/msg/pose.hpp>
 #include <vision_interface/msg/detections.hpp>
 #include <vision_interface/msg/line_segments.hpp>
+#include <vision_interface/msg/cal_param.hpp>
 #include <vision_interface/msg/segmentation_result.hpp>
+#include <game_controller_interface/msg/game_control_data.hpp>
+#include <booster/robot/b1/b1_api_const.hpp>
+#include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 
-
-#include "booster_interface/msg/low_state.hpp"
 #include "booster_interface/msg/odometer.hpp"
+#include "booster_interface/msg/low_state.hpp"
 #include "booster_interface/msg/raw_bytes_msg.hpp"
 #include "booster_interface/msg/remote_controller_state.hpp"
 
 #include "RoboCupGameControlData.h"
-#include "brain/msg/kick.hpp"
 #include "team_communication_msg.h"
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <stdexcept>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <stdexcept>
+#include "brain/msg/kick.hpp"
 
-#include "brain_communication.h"
 #include "brain_config.h"
 #include "brain_data.h"
 #include "brain_log.h"
 #include "brain_tree.h"
+#include "brain_communication.h"
 #include "locator.h"
 #include "robot_client.h"
 
@@ -139,8 +137,7 @@ public:
   // ------------------------------------------------------ SUB CALLBACKS
   // ------------------------------------------------------
 
-  void
-  joystickCallback(const booster_interface::msg::RemoteControllerState &msg);
+  void joystickCallback(const booster_interface::msg::RemoteControllerState &msg);
 
   void gameControlCallback(
       const game_controller_interface::msg::GameControlData &msg);
@@ -235,14 +232,14 @@ private:
   void logDetection(const vector<GameObject> &gameObjects,
                     bool logBoundingBox = true);
 
-//   void logMemRobots();
+    void logMemRobots();
 
   void logObstacles();
 
-//   void logDepth(int grid_x_count, int grid_y_count, vector<vector<int>> &grid,
-//                 vector<rerun::Vec3D> &points);
+  void logDepth(int grid_x_count, int grid_y_count, vector<vector<int>> &grid,
+                vector<rerun::Vec3D> &points);
 
-//   void logDebugInfo();
+    void logDebugInfo();
 
   void updateLogFile();
 
@@ -272,11 +269,11 @@ private:
 
   // ------------------------------------------------------ 调试 log 相关
   // ------------------------------------------------------
-//   void logObstacleDistance();
-//   void logLags();
-//   void statusReport();
-//   void logStatusToConsole();
+  void logObstacleDistance();
+  void logLags();
+  void statusReport();
+  void logStatusToConsole();
   string getComLogString();
-//   void playSoundForFun();
+  void playSoundForFun();
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 };
