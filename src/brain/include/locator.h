@@ -69,6 +69,20 @@ public:
   double w_fast = 0.0;
   double alpha_slow = 0.05;
   double alpha_fast = 0.5;
+  double pfInjectionRatio = 0.2;
+
+  int pfNumParticles = 150;
+  double pfInitFieldMargin = 1.0;
+  bool pfInitOwnHalfOnly = true;
+
+  double pfAlpha1 = 0.1;
+  double pfAlpha2 = 0.05;
+  double pfAlpha3 = 0.05;
+  double pfAlpha4 = 0.01;
+
+  void setPFParams(int numParticles, double initMargin, bool ownHalf,
+                   double sensorNoise, std::vector<double> alphas,
+                   double alphaSlow, double alphaFast, double injectionRatio);
 
   // Legacy / Helper Methods (Restored to original purpose)
   void init(FieldDimensions fd, int minMarkerCnt = 4,

@@ -99,6 +99,17 @@ Brain::Brain() : rclcpp::Node("brain_node") {
 
   declare_parameter<int>("locator.min_marker_count", 5);
   declare_parameter<double>("locator.max_residual", 0.3);
+  declare_parameter<int>("locator.num_particles", 150);
+  declare_parameter<double>("locator.init_field_margin", 1.0);
+  declare_parameter<bool>("locator.init_own_half_only", true);
+  declare_parameter<double>("locator.pf_sensor_noise", 1.0);
+  declare_parameter<double>("locator.pf_alpha_1", 0.1);
+  declare_parameter<double>("locator.pf_alpha_2", 0.05);
+  declare_parameter<double>("locator.pf_alpha_3", 0.05);
+  declare_parameter<double>("locator.pf_alpha_4", 0.01);
+  declare_parameter<double>("locator.pf_alpha_slow", 0.05);
+  declare_parameter<double>("locator.pf_alpha_fast", 0.5);
+  declare_parameter<double>("locator.pf_injection_ratio", 0.2);
 
   declare_parameter<bool>("enable_com", false);
 
@@ -146,6 +157,11 @@ void Brain::init() {
 
   locator->init(config->fieldDimensions, config->pfMinMarkerCnt,
                 config->pfMaxResidual, 2.0, true, "127.0.0.1:9876");
+  locator->setPFParams(
+      config->pfNumParticles, config->pfInitFieldMargin,
+      config->pfInitOwnHalfOnly, config->pfSensorNoise,
+      {config->pfAlpha1, config->pfAlpha2, config->pfAlpha3, config->pfAlpha4},
+      config->pfAlphaSlow, config->pfAlphaFast, config->pfInjectionRatio);
   locator->setLog(&log->stream());
 
   tree->init();
@@ -237,6 +253,17 @@ void Brain::loadConfig() {
 
   get_parameter("locator.min_marker_count", config->pfMinMarkerCnt);
   get_parameter("locator.max_residual", config->pfMaxResidual);
+  get_parameter("locator.num_particles", config->pfNumParticles);
+  get_parameter("locator.init_field_margin", config->pfInitFieldMargin);
+  get_parameter("locator.init_own_half_only", config->pfInitOwnHalfOnly);
+  get_parameter("locator.pf_sensor_noise", config->pfSensorNoise);
+  get_parameter("locator.pf_alpha_1", config->pfAlpha1);
+  get_parameter("locator.pf_alpha_2", config->pfAlpha2);
+  get_parameter("locator.pf_alpha_3", config->pfAlpha3);
+  get_parameter("locator.pf_alpha_4", config->pfAlpha4);
+  get_parameter("locator.pf_alpha_slow", config->pfAlphaSlow);
+  get_parameter("locator.pf_alpha_fast", config->pfAlphaFast);
+  get_parameter("locator.pf_injection_ratio", config->pfInjectionRatio);
 
   get_parameter("enable_com", config->enableCom);
 
@@ -401,7 +428,8 @@ void Brain::handleSpecialStates() {
 //       string label = format("ID: %d, Cost: %.1f", tmId, tmStatus.cost);
 //       log->logRobot(format("field/teammate-%d", tmId).c_str(),
 //                     tmStatus.robotPoseToField, color, label);
-//       log->logBall(format("tm_ball-%d", tmId).c_str(), tmStatus.ballPosToField,
+//       log->logBall(format("tm_ball-%d", tmId).c_str(),
+//       tmStatus.ballPosToField,
 //                    tmStatus.ballDetected
 //                        ? 0x00FFFFFF
 //                        : (tmStatus.isAlive ? 0x006666FF : 0x003333FF),
@@ -432,7 +460,8 @@ void Brain::handleSpecialStates() {
 //   log_(format("alive TM Count: %d", aliveTmIdxs.size()));
 
 //   // log 当前 alive 队友的信息
-//   log_(format("Self: cost: %.1f, isLead: %d", data->tmMyCost, data->tmImLead));
+//   log_(format("Self: cost: %.1f, isLead: %d", data->tmMyCost,
+//   data->tmImLead));
 
 //   static rclcpp::Time lastTmBallPosTime = get_clock()->now();
 //   const double TM_BALL_TIMEOUT = 1000.;
@@ -451,12 +480,13 @@ void Brain::handleSpecialStates() {
 //                          status.ballPosToField.y - data->robotPoseToField.y);
 //       if (dist > RANGE_THRESHOLD) {
 //         log_(format(
-//             "tm ball dist to me(%.1f) > threshold(%.1f), TM %d can be trusted",
-//             dist, RANGE_THRESHOLD, i + 1));
+//             "tm ball dist to me(%.1f) > threshold(%.1f), TM %d can be
+//             trusted", dist, RANGE_THRESHOLD, i + 1));
 //         minRange = status.ballRange;
 //         trustedTMIdx = aliveTmIdxs[i];
 //       } else {
-//         log_(format("tm ball dist to me(%.1f) < threshold(%.1f), TM %d can NOT "
+//         log_(format("tm ball dist to me(%.1f) < threshold(%.1f), TM %d can
+//         NOT "
 //                     "be trusted",
 //                     dist, RANGE_THRESHOLD, i + 1));
 //       }
@@ -513,7 +543,8 @@ void Brain::handleSpecialStates() {
 //   get_parameter("strategy.cooperation.ball_control_cost_threshold",
 //                 BALL_CONTROL_COST_THRESHOLD);
 
-//   if (tmMinCost < BALL_CONTROL_COST_THRESHOLD && data->tmMyCost > tmMinCost) {
+//   if (tmMinCost < BALL_CONTROL_COST_THRESHOLD && data->tmMyCost > tmMinCost)
+//   {
 
 //     data->tmImLead = false;
 //     tree->setEntry<bool>("is_lead", false);
@@ -528,7 +559,8 @@ void Brain::handleSpecialStates() {
 
 //   if (data->tmImAlive &&
 //       tree->getEntry<string>("player_role") == "goal_keeper" &&
-//       data->tmImLead && msecsSince(data->tmLastCmdChangeTime) > CMD_COOLDOWN) {
+//       data->tmImLead && msecsSince(data->tmLastCmdChangeTime) > CMD_COOLDOWN)
+//       {
 //     auto distToGoal = [=](Pose2D pose) {
 //       return norm(pose.x + config->fieldDimensions.length / 2.0, pose.y);
 //     };
@@ -553,12 +585,13 @@ void Brain::handleSpecialStates() {
 //       data->tmCmdId += 1;
 //       data->tmMyCmdId = data->tmCmdId;
 //       tree->setEntry<string>("player_role", "striker");
-//       log_(format("goalie: i am too far from goal, i ask player %d to attack",
+//       log_(format("goalie: i am too far from goal, i ask player %d to
+//       attack",
 //                   minIndex + 1));
 //     } else {
 //       log_(format(
-//           "goalie: i am close enough to goal, no need to attack, my dist: %.2f",
-//           myDist));
+//           "goalie: i am close enough to goal, no need to attack, my dist:
+//           %.2f", myDist));
 //     }
 //   }
 
@@ -672,7 +705,7 @@ void Brain::updateRobotMemory() {
 
   data->setRobots(newRobots);
 
-  logMemRobots();
+  // logMemRobots();
 }
 
 void Brain::updateKickoffMemory() {
@@ -816,7 +849,8 @@ double Brain::calcKickDir(double goalPostMargin) {
 //   cost +=
 //       fabs(toPInPI(data->kickDir - data->robotBallAngleToField)) * 0.4 / 0.3;
 //   log_(format("ajust cost: %.1f",
-//               fabs(toPInPI(data->kickDir - data->robotBallAngleToField)) * 0.4 /
+//               fabs(toPInPI(data->kickDir - data->robotBallAngleToField)) *
+//               0.4 /
 //                   0.3));
 
 //   if (data->recoveryState == RobotRecoveryState::HAS_FALLEN) {
@@ -831,7 +865,8 @@ double Brain::calcKickDir(double goalPostMargin) {
 
 //   double lastCost = data->tmMyCost;
 //   data->tmMyCost = lastCost * 0.5 + cost * 0.5;
-//   log_(format("lastCost: %.1f, newCost: %.1f, smoothCost: %.1f", lastCost, cost,
+//   log_(format("lastCost: %.1f, newCost: %.1f, smoothCost: %.1f", lastCost,
+//   cost,
 //               data->tmMyCost));
 
 //   return;
@@ -1353,14 +1388,16 @@ void Brain::gameControlCallback(
   // log game state
   // log->setTimeNow();
   // log->logToScreen("tick/gamecontrol",
-  //                  format("Player: %d  Role: %s PrimaryStriker: %s GameState: "
-  //                         "%s  SubStateType: %s  SubState: %s UnderPenalty: %d "
-  //                         "isKickoff: %d isSubStateKickoff: %d",
+  //                  format("Player: %d  Role: %s PrimaryStriker: %s GameState:
+  //                  "
+  //                         "%s  SubStateType: %s  SubState: %s UnderPenalty:
+  //                         %d " "isKickoff: %d isSubStateKickoff: %d",
   //                         config->playerId,
   //                         tree->getEntry<string>("player_role").c_str(),
-  //                         isPrimaryStriker() ? "Yes" : "No", gameState.c_str(),
-  //                         gameSubStateType.c_str(), gameSubState.c_str(),
-  //                         isUnderPenalty, isKickOffSide, isSubStateKickOffSide),
+  //                         isPrimaryStriker() ? "Yes" : "No",
+  //                         gameState.c_str(), gameSubStateType.c_str(),
+  //                         gameSubState.c_str(), isUnderPenalty,
+  //                         isKickOffSide, isSubStateKickOffSide),
   //                  0xFFFFFFFF, 30.0);
 
   // FOR FUN 处理进球后的庆祝挥手的逻辑
@@ -1633,28 +1670,29 @@ void Brain::odometerCallback(const booster_interface::msg::Odometer &msg) {
   // log->log("debug/odom_callback",
   //          rerun::TextLog(
   //              format("x: %.1f, y: %.1f, z: %.1f", data->robotPoseToOdom.x,
-  //                     data->robotPoseToOdom.y, data->robotPoseToOdom.theta)));
+  //                     data->robotPoseToOdom.y,
+  //                     data->robotPoseToOdom.theta)));
 
   // 广播tf变换
   tf_broadcaster_->sendTransform(transform);
 
   // Log Odom 信息
 
-//   log->setTimeNow();
-//   auto color = 0x00FF00FF;
-//   if (!data->tmImAlive)
-//     color = 0x006600FF;
-//   else if (!data->tmImLead)
-//     color = 0x00CC00FF;
-//   string label = format("Cost: %.1f", data->tmMyCost);
-//   log->logRobot("field/robot", data->robotPoseToField, color, label, true);
-// }
-// void Brain::lowStateCallback(const booster_interface::msg::LowState &msg) {
-//   data->headYaw = msg.motor_state_serial[0].q;
-//   data->headPitch = msg.motor_state_serial[1].q;
-//   log->log("debug/head_angles",
-//            rerun::TextLog(format("pitch: %.1f, yaw: %.1f", data->headYaw,
-//                                  data->headPitch)));
+  //   log->setTimeNow();
+  //   auto color = 0x00FF00FF;
+  //   if (!data->tmImAlive)
+  //     color = 0x006600FF;
+  //   else if (!data->tmImLead)
+  //     color = 0x00CC00FF;
+  //   string label = format("Cost: %.1f", data->tmMyCost);
+  //   log->logRobot("field/robot", data->robotPoseToField, color, label, true);
+  // }
+  // void Brain::lowStateCallback(const booster_interface::msg::LowState &msg) {
+  //   data->headYaw = msg.motor_state_serial[0].q;
+  //   data->headPitch = msg.motor_state_serial[1].q;
+  //   log->log("debug/head_angles",
+  //            rerun::TextLog(format("pitch: %.1f, yaw: %.1f", data->headYaw,
+  //                                  data->headPitch)));
 }
 
 void Brain::imageCallback(const sensor_msgs::msg::Image &msg) {
@@ -2494,7 +2532,8 @@ void Brain::logDetection(const vector<GameObject> &gameObjects,
 //     log->logRobot("field/robots",
 //                   Pose2D({rbt.posToField.x, rbt.posToField.y, -M_PI}),
 //                   0xFF0000FF);
-//     // circles.push_back(log->circle(rbt.posToField.x, -rbt.posToField.y, 0.5));
+//     // circles.push_back(log->circle(rbt.posToField.x, -rbt.posToField.y,
+//     0.5));
 //     // // y 取反是因为 rerun Viewer 的坐标系是左手系。转一下看起来更方便。
 //     // points_r.push_back(rerun::Vec2D{rbt.posToRobot.x, -rbt.posToRobot.y});
 //   }
@@ -2557,8 +2596,9 @@ void Brain::logDetection(const vector<GameObject> &gameObjects,
 //       get_parameter("obstacle_avoidance.grid_size").as_double(); // 网格大小
 //   const double x_min = 0.0,
 //                x_max = get_parameter("obstacle_avoidance.max_x").as_double();
-//   const double y_min = -get_parameter("obstacle_avoidance.max_y").as_double();
-//   const double y_max = -y_min;
+//   const double y_min =
+//   -get_parameter("obstacle_avoidance.max_y").as_double(); const double y_max
+//   = -y_min;
 
 //   // 记录原始点云和网格
 //   vector<rerun::Position3D> vertices;
@@ -2656,8 +2696,8 @@ void Brain::logDetection(const vector<GameObject> &gameObjects,
 //   string directShoot = data->isDirectShoot ? "YES" : "NO";
 //   string primaryStriker = isPrimaryStriker() ? "YES" : "NO";
 //   log_(format(
-//       "Game State: %s, SubState: %s, SubStateType: %s, Lead: %s, Decision: %s, "
-//       "FreeKickKickingOff: %s, DirectShoot: %s, PrimaryStriker: %s",
+//       "Game State: %s, SubState: %s, SubStateType: %s, Lead: %s, Decision:
+//       %s, " "FreeKickKickingOff: %s, DirectShoot: %s, PrimaryStriker: %s",
 //       gameState.c_str(), gameSubState.c_str(), gameSubStateType.c_str(),
 //       isLead.c_str(), decision.c_str(), freeKickKickingOff.c_str(),
 //       directShoot.c_str(), primaryStriker.c_str()));
@@ -2726,7 +2766,8 @@ void Brain::updateFieldPos(GameObject &obj) {
 
 //       // 直接创建 32 位浮点数格式的深度图像
 //       depthFloat = cv::Mat(msg.height, msg.width, CV_32FC1,
-//                            const_cast<float *>(reinterpret_cast<const float *>(
+//                            const_cast<float *>(reinterpret_cast<const float
+//                            *>(
 //                                msg.data.data())))
 //                        .clone();
 
@@ -2742,18 +2783,22 @@ void Brain::updateFieldPos(GameObject &obj) {
 //     const double fy = config->camfy;
 //     const double cx = config->camcx;
 //     const double cy = config->camcy;
-//     // cout << "fx = " << fx << " fy = " << fy << " cx = " << cx << " cy = " <<
+//     // cout << "fx = " << fx << " fy = " << fy << " cx = " << cx << " cy = "
+//     <<
 //     // cy << endl;
 
 //     // 定义网格参数
 //     const double grid_size =
-//         get_parameter("obstacle_avoidance.grid_size").as_double(); // 网格大小
+//         get_parameter("obstacle_avoidance.grid_size").as_double(); //
+//         网格大小
 //     const double x_min = 0.0,
-//                  x_max = get_parameter("obstacle_avoidance.max_x").as_double();
-//     const double y_min = -get_parameter("obstacle_avoidance.max_y").as_double();
-//     const double y_max = -y_min;
-//     const int grid_x_count = static_cast<int>((x_max - x_min) / grid_size);
-//     const int grid_y_count = static_cast<int>((y_max - y_min) / grid_size);
+//                  x_max =
+//                  get_parameter("obstacle_avoidance.max_x").as_double();
+//     const double y_min =
+//     -get_parameter("obstacle_avoidance.max_y").as_double(); const double
+//     y_max = -y_min; const int grid_x_count = static_cast<int>((x_max - x_min)
+//     / grid_size); const int grid_y_count = static_cast<int>((y_max - y_min) /
+//     grid_size);
 
 //     // 创建网格占用数组
 //     vector<vector<int>> grid_occupied(grid_x_count,
@@ -2803,9 +2848,11 @@ void Brain::updateFieldPos(GameObject &obj) {
 //                    point_robot(1) <= EXCLUDE_MAX_Y;
 //           };
 //           auto isBall = [&]() {
-//             double r = get_parameter("obstacle_avoidance.ball_exclusion_radius")
+//             double r =
+//             get_parameter("obstacle_avoidance.ball_exclusion_radius")
 //                            .as_double();
-//             double h = get_parameter("obstacle_avoidance.ball_exclusion_height")
+//             double h =
+//             get_parameter("obstacle_avoidance.ball_exclusion_height")
 //                            .as_double();
 //             return fabs(point_robot(0) - data->ball.posToRobot.x) < r &&
 //                    fabs(point_robot(1) - data->ball.posToRobot.y) < r &&
@@ -2814,9 +2861,9 @@ void Brain::updateFieldPos(GameObject &obj) {
 
 //           if (point_robot(2) > Z_THRESHOLD && isInRange() && !isSelfBody() &&
 //               !isBall()) {
-//             int grid_x = static_cast<int>((point_robot(0) - x_min) / grid_size);
-//             int grid_y = static_cast<int>((point_robot(1) - y_min) / grid_size);
-//             grid_occupied[grid_x][grid_y] += 1;
+//             int grid_x = static_cast<int>((point_robot(0) - x_min) /
+//             grid_size); int grid_y = static_cast<int>((point_robot(1) -
+//             y_min) / grid_size); grid_occupied[grid_x][grid_y] += 1;
 //           }
 //         }
 //       }
@@ -2890,9 +2937,11 @@ void Brain::updateFieldPos(GameObject &obj) {
 // // // // // double Brain::distToObstacle(double angle) {
 // // // // //   auto obs = data->getObstacles();
 // // // // //   double minDist = 1e9;
-// // // // //   // double obstacleThreshold = static_cast<double>(config->obstacleThreshold);
+// // // // //   // double obstacleThreshold =
+// static_cast<double>(config->obstacleThreshold);
 // // // // //   double obstacleThreshold = static_cast<double>(
-// // // // //       get_parameter("obstacle_avoidance.occupancy_threshold").as_int());
+// // // // //
+// get_parameter("obstacle_avoidance.occupancy_threshold").as_int());
 
 // // // // //   double collisionThreshold = config->collisionThreshold;
 
@@ -2903,10 +2952,13 @@ void Brain::updateFieldPos(GameObject &obj) {
 // // // // //     auto o = obs[i];
 // // // // //     Line line = {0, 0, cos(angle) * 100, sin(angle) * 100};
 // // // // //     double perpDist = fabs(
-// // // // //         pointPerpDistToLine(Point2D{o.posToRobot.x, o.posToRobot.y}, line));
+// // // // //         pointPerpDistToLine(Point2D{o.posToRobot.x,
+// o.posToRobot.y}, line));
 // // // // //     if (perpDist < collisionThreshold) {
-// // // // //       double dist = innerProduct(vector<double>{o.posToRobot.x, o.posToRobot.y},
-// // // // //                                  vector<double>{cos(angle), sin(angle)});
+// // // // //       double dist = innerProduct(vector<double>{o.posToRobot.x,
+// o.posToRobot.y},
+// // // // //                                  vector<double>{cos(angle),
+// sin(angle)});
 // // // // //       if (dist > 0 && dist < minDist) {
 // // // // //         minDist = dist;
 // // // // //       }
@@ -2915,20 +2967,23 @@ void Brain::updateFieldPos(GameObject &obj) {
 // // // // //   return minDist;
 // // // // // }
 
-// // // // // vector<double> Brain::findSafeDirections(double startAngle, double safeDist,
+// // // // // vector<double> Brain::findSafeDirections(double startAngle,
+// double safeDist,
 // // // // //                                          double step) {
 // // // // //   double safeAngleLeft = startAngle;
 // // // // //   double safeAngleRight = startAngle;
 // // // // //   double leftFound = 0;
 // // // // //   double rightFound = 0;
-// // // // //   for (double angle = startAngle; angle < startAngle + M_PI; angle += step) {
+// // // // //   for (double angle = startAngle; angle < startAngle + M_PI;
+// angle += step) {
 // // // // //     if (distToObstacle(angle) > safeDist) {
 // // // // //       safeAngleLeft = angle;
 // // // // //       leftFound = 1;
 // // // // //       break;
 // // // // //     }
 // // // // //   }
-// // // // //   for (double angle = startAngle; angle > startAngle - M_PI; angle -= step) {
+// // // // //   for (double angle = startAngle; angle > startAngle - M_PI;
+// angle -= step) {
 // // // // //     if (distToObstacle(angle) > safeDist) {
 // // // // //       safeAngleRight = angle;
 // // // // //       rightFound = 1;
@@ -2936,7 +2991,8 @@ void Brain::updateFieldPos(GameObject &obj) {
 // // // // //     }
 // // // // //   }
 
-// // // // //   return vector<double>{leftFound, toPInPI(safeAngleLeft), rightFound,
+// // // // //   return vector<double>{leftFound, toPInPI(safeAngleLeft),
+// rightFound,
 // // // // //                         toPInPI(safeAngleRight)};
 // // // // // }
 
@@ -2949,7 +3005,8 @@ void Brain::updateFieldPos(GameObject &obj) {
 // // // // //   double determinedAngle = 0;
 // // // // //   if (leftFound && rightFound) {
 // // // // //     determinedAngle =
-// // // // //         fabs(angleLeft) < fabs(angleRight) ? angleLeft : angleRight;
+// // // // //         fabs(angleLeft) < fabs(angleRight) ? angleLeft :
+// angleRight;
 // // // // //   } else if (leftFound) {
 // // // // //     determinedAngle = angleLeft;
 // // // // //   } else if (rightFound) {
@@ -2962,11 +3019,13 @@ void Brain::updateFieldPos(GameObject &obj) {
 
 // // // // // void Brain::updateLogFile() {
 // // // // //   if (config->rerunLogEnableFile &&
-// // // // //       msecsSince(data->timeLastLogSave) > config->rerunLogMaxFileMins * 60000)
+// // // // //       msecsSince(data->timeLastLogSave) >
+// config->rerunLogMaxFileMins * 60000)
 // // // // //     log->updateLogFilePath();
 // // // // // }
 
-// // // // // // ------------------------------------------------------ 调试 log 相关
+// // // // // // ------------------------------------------------------ 调试
+// log 相关
 // // // // // // ------------------------------------------------------
 // // // // // void Brain::logObstacleDistance() {
 // // // // //   log->setTimeNow();
@@ -2976,14 +3035,15 @@ void Brain::updateFieldPos(GameObject &obj) {
 // // // // //   for (int i = 0; i < 180; i++) {
 // // // // //     double angle = i * M_PI / 90;
 // // // // //     double dist = min(5.0, distToObstacle(angle));
-// // // // //     double angle_f = toPInPI(data->robotPoseToField.theta + angle);
+// // // // //     double angle_f = toPInPI(data->robotPoseToField.theta +
+// angle);
 // // // // //     lines.push_back(rerun::LineStrip2D(
 // // // // //         {{data->robotPoseToField.x, -data->robotPoseToField.y},
 // // // // //          {data->robotPoseToField.x + cos(-angle_f) * dist,
 // // // // //           -data->robotPoseToField.y + sin(-angle_f) * dist}}));
 // // // // //   }
 // // // // //   log->log("field/obstacle_distance", rerun::LineStrips2D(lines)
-// // // // //                                           .with_colors(0x666666FF)
+// // // // // .with_colors(0x666666FF)
 // // // // //                                           .with_radii(0.01)
 // // // // //                                           .with_draw_order(-10));
 // // // // // }
@@ -3003,12 +3063,14 @@ void Brain::updateFieldPos(GameObject &obj) {
 // // // //   log->log("image/detection_lag",
 // // // //            rerun::LineStrips2D(
 // // // //                rerun::LineStrip2D(
-// // // //                    {{10., -150.}, {10. + min(detLag, MAX_LAG_LENGTH), -150.}}))
+// // // //                    {{10., -150.}, {10. + min(detLag,
+// MAX_LAG_LENGTH), -150.}}))
 // // // //                .with_colors(color)
 // // // //                .with_radii(2.0)
 // // // //                .with_draw_order(10)
 // // // //                .with_labels({format("Det Lag %.0fms", detLag)}));
-// // // //   log->log("performance/detection_lag_timeseries", rerun::Scalar(detLag));
+// // // //   log->log("performance/detection_lag_timeseries",
+// rerun::Scalar(detLag));
 
 // // // //   // log fieldline detection delay
 // // // //   double lineLag = msecsSince(data->timeLastLineDet);
@@ -3022,11 +3084,13 @@ void Brain::updateFieldPos(GameObject &obj) {
 // // // //   log->log("image/fieldline_detection_lag",
 // // // //            rerun::LineStrips2D(
 // // // //                rerun::LineStrip2D(
-// // // //                    {{10., -100.}, {10. + min(lineLag, MAX_LAG_LENGTH), -100.}}))
+// // // //                    {{10., -100.}, {10. + min(lineLag,
+// MAX_LAG_LENGTH), -100.}}))
 // // // //                .with_colors(color)
 // // // //                .with_radii(2.0)
 // // // //                .with_draw_order(10)
-// // // //                .with_labels({format("Line Det Lag %.0fms", lineLag)}));
+// // // //                .with_labels({format("Line Det Lag %.0fms",
+// lineLag)}));
 // // // //   log->log("performance/fieldline_detection_lag_timeseries",
 // // // //            rerun::Scalar(lineLag));
 
@@ -3042,12 +3106,14 @@ void Brain::updateFieldPos(GameObject &obj) {
 // // // //   log->log("image/gamecontrol_lag",
 // // // //            rerun::LineStrips2D(
 // // // //                rerun::LineStrip2D(
-// // // //                    {{10., -50.}, {10. + min(gcLag, MAX_LAG_LENGTH), -50.}}))
+// // // //                    {{10., -50.}, {10. + min(gcLag, MAX_LAG_LENGTH),
+// -50.}}))
 // // // //                .with_colors(color)
 // // // //                .with_radii(2.0)
 // // // //                .with_draw_order(10)
 // // // //                .with_labels({format("GC Lag %.0fms", gcLag)}));
-// // // //   log->log("performance/gamecontrol_lag_timeseries", rerun::Scalar(gcLag));
+// // // //   log->log("performance/gamecontrol_lag_timeseries",
+// rerun::Scalar(gcLag));
 // // // // }
 
 // // // void Brain::statusReport() {
@@ -3097,32 +3163,39 @@ void Brain::updateFieldPos(GameObject &obj) {
 // //                   tree->getEntry<string>("player_role").c_str(),
 // //                   config->playerRole.c_str());
 // //     msg += format(
-// //         "GAME:\n\tState: %s\tKickOffSide: %s\tisKickingOff: %s(%s)\n\tSubType: "
-// //         "%s\tSubState: %s\tSubKickOffSide: %s\tisKickingOff: %s(%s)\n\tScore: "
-// //         "%s\tJustScored: %s\n\tLiveCount: %d\tOppoLiveCount: %d\tPrimary: "
+// //         "GAME:\n\tState: %s\tKickOffSide: %s\tisKickingOff:
+// %s(%s)\n\tSubType: "
+// //         "%s\tSubState: %s\tSubKickOffSide: %s\tisKickingOff:
+// %s(%s)\n\tScore: "
+// //         "%s\tJustScored: %s\n\tLiveCount: %d\tOppoLiveCount: %d\tPrimary:
+// "
 // //         "%s\n\n",
 // //         gameState.c_str(),
 // //         tree->getEntry<bool>("gc_is_kickoff_side") ? "YES" : "NO",
 // //         data->isKickingOff ? "YES" : "NO",
 // //         msecsSince(data->kickoffStartTime) / 1000 > 100
 // //             ? "--"
-// //             : to_string(msecsSince(data->kickoffStartTime) / 1000).c_str(),
+// //             : to_string(msecsSince(data->kickoffStartTime) /
+// 1000).c_str(),
 // //         gameSubType.c_str(), gameSubState.c_str(),
-// //         tree->getEntry<bool>("gc_is_sub_state_kickoff_side") ? "YES" : "NO",
+// //         tree->getEntry<bool>("gc_is_sub_state_kickoff_side") ? "YES" :
+// "NO",
 // //         data->isFreekickKickingOff ? "YES" : "NO",
 // //         msecsSince(data->freekickKickoffStartTime) / 1000 > 100
 // //             ? "--"
 // //             : to_string(msecsSince(data->freekickKickoffStartTime) / 1000)
 // //                   .c_str(),
 // //         format("%d:%d", data->score, data->oppoScore).c_str(),
-// //         tree->getEntry<bool>("we_just_scored") ? "YES" : "NO", data->liveCount,
+// //         tree->getEntry<bool>("we_just_scored") ? "YES" : "NO",
+// data->liveCount,
 // //         data->oppoLiveCount, isPrimaryStriker() ? "YES" : "NO");
 
 // //     msg += getComLogString();
 
 // //     msg +=
 // //         format("DEBUG:\n\tcom: %s\tlogFile: %s\tlogTCP: %s\n\tvxFactor: "
-// //                "%.2f\tyawOffset: %.2f\n\tControlState: %d\n\tTickTime: %.0fms",
+// //                "%.2f\tyawOffset: %.2f\n\tControlState: %d\n\tTickTime:
+// %.0fms",
 // //                config->enableCom ? "YES" : "NO",
 // //                config->rerunLogEnableFile ? "YES" : "NO",
 // //                config->rerunLogEnableTCP ? "YES" : "NO", config->vxFactor,

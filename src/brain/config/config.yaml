@@ -56,6 +56,17 @@ brain_node:
     locator:
       min_marker_count: 5
       max_residual: 0.35 
+      num_particles: 150
+      init_field_margin: 1.0
+      init_own_half_only: true
+      pf_sensor_noise: 1.0
+      pf_alpha_1: 0.1
+      pf_alpha_2: 0.05
+      pf_alpha_3: 0.05
+      pf_alpha_4: 0.01
+      pf_alpha_slow: 0.05
+      pf_alpha_fast: 0.5
+      pf_injection_ratio: 0.2
 
     enable_com: false 
 

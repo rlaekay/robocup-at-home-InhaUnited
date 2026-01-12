@@ -44,6 +44,25 @@ void Locator::init(FieldDimensions fd, int minMarkerCntParam,
   }
 }
 
+void Locator::setPFParams(int numParticles, double initMargin, bool ownHalf,
+                          double sensorNoise, std::vector<double> alphas,
+                          double alphaSlow, double alphaFast,
+                          double injectionRatio) {
+  pfNumParticles = numParticles;
+  pfInitFieldMargin = initMargin;
+  pfInitOwnHalfOnly = ownHalf;
+  pfSensorNoiseR = sensorNoise;
+  if (alphas.size() >= 4) {
+    pfAlpha1 = alphas[0];
+    pfAlpha2 = alphas[1];
+    pfAlpha3 = alphas[2];
+    pfAlpha4 = alphas[3];
+  }
+  alpha_slow = alphaSlow;
+  alpha_fast = alphaFast;
+  pfInjectionRatio = injectionRatio;
+}
+
 void Locator::calcFieldMarkers(FieldDimensions fd) {
 
   fieldMarkers.push_back(FieldMarker{'X', 0.0, -fd.circleRadius, 0.0});
@@ -134,26 +153,33 @@ double Locator::minDist(FieldMarker marker) {
 
 void Locator::globalInitPF(Pose2D currentOdom) {
   // fieldDimensions.width and length are full dimensions
-  double xMin =
-      -fieldDimensions.length / 2.0 - 1.0; // Slight margin outside field
-  double xMax = 1.0;                       // Constrain to Own Half (roughly)
-  double yMin = -fieldDimensions.width / 2.0 - 1.0;
-  double yMax = fieldDimensions.width / 2.0 + 1.0;
+  // fieldDimensions.width and length are full dimensions
+  double xMin = -fieldDimensions.length / 2.0 -
+                pfInitFieldMargin; // Slight margin outside field
+  double xMax = pfInitOwnHalfOnly
+                    ? 1.0
+                    : (fieldDimensions.length / 2.0 + pfInitFieldMargin);
+  double yMin = -fieldDimensions.width / 2.0 - pfInitFieldMargin;
+  double yMax = fieldDimensions.width / 2.0 + pfInitFieldMargin;
   double thetaMin = -M_PI;
   double thetaMax = M_PI;
 
   isPFInitialized = true;
   lastPFOdomPose = currentOdom; // Initialize lastPFOdomPose
 
-  int num = 150;
+  int num = pfNumParticles;
   pfParticles.resize(num);
 
   std::srand(std::time(0));
   for (int i = 0; i < num; i++) {
     pfParticles[i].x = xMin + ((double)rand() / RAND_MAX) * (xMax - xMin);
     pfParticles[i].y = yMin + ((double)rand() / RAND_MAX) * (yMax - yMin);
+    // Face Y-Axis with +/- 30 degrees offset
+    double thetaSpread = deg2rad(30.0);
+    double thetaCenter = M_PI / 2.0;
     pfParticles[i].theta =
-        toPInPI(thetaMin + ((double)rand() / RAND_MAX) * (thetaMax - thetaMin));
+        toPInPI(thetaCenter + ((double)rand() / RAND_MAX * 2.0 * thetaSpread) -
+                thetaSpread);
     pfParticles[i].weight = 1.0 / num;
   }
 
@@ -187,10 +213,10 @@ void Locator::predictPF(Pose2D currentOdomPose) {
   double trans = sqrt(trans_x * trans_x + trans_y * trans_y);
   double rot2 = dtheta - rot1;
 
-  double alpha1 = 0.1;  // rot -> rot
-  double alpha2 = 0.05; // trans -> rot
-  double alpha3 = 0.05; // trans -> trans
-  double alpha4 = 0.01; // rot -> trans
+  double alpha1 = pfAlpha1; // rot -> rot
+  double alpha2 = pfAlpha2; // trans -> rot
+  double alpha3 = pfAlpha3; // trans -> trans
+  double alpha4 = pfAlpha4; // rot -> trans
 
   for (auto &p : pfParticles) {
     double n_rot1 =
@@ -224,17 +250,26 @@ void Locator::correctPF(const vector<FieldMarker> markers) {
 
   // Weight Update
   for (auto &p : pfParticles) {
-    Pose2D pose{p.x, p.y, p.theta};
-    double logLikelihood = 0;
+    // Check Boundary Constraints
+    double xMinConstraint = -fieldDimensions.length / 2.0 - pfInitFieldMargin;
+    double xMaxConstraint = fieldDimensions.length / 2.0 + pfInitFieldMargin;
+    double yMinConstraint = -fieldDimensions.width / 2.0 - pfInitFieldMargin;
+    double yMaxConstraint = fieldDimensions.width / 2.0 + pfInitFieldMargin;
 
-    for (auto &m_r : markers) {
-      auto m_f = markerToFieldFrame(m_r, pose);
-      double dist = minDist(m_f);
-      logLikelihood += -(dist * dist) / (2 * sigma * sigma);
+    if (p.x < xMinConstraint || p.x > xMaxConstraint || p.y < yMinConstraint ||
+        p.y > yMaxConstraint) {
+      p.weight = 0.0;
+    } else {
+      Pose2D pose{p.x, p.y, p.theta};
+      double logLikelihood = 0;
+      for (auto &m_r : markers) {
+        auto m_f = markerToFieldFrame(m_r, pose);
+        double dist = minDist(m_f);
+        logLikelihood += -(dist * dist) / (2 * sigma * sigma);
+      }
+      double likelihood = exp(logLikelihood);
+      p.weight *= likelihood;
     }
-
-    double likelihood = exp(logLikelihood);
-    p.weight *= likelihood;
     totalWeight += p.weight;
   }
 
@@ -251,6 +286,10 @@ void Locator::correctPF(const vector<FieldMarker> markers) {
   }
 
   // --- Augmented MCL: Update w_slow and w_fast ---
+  // DISABLED by user request; favoring pure localization from good init
+  // To re-enable, uncomment the injection logic below.
+  double p_inject = 0.0;
+  /*
   if (w_slow == 0.0)
     w_slow = avgWeight;
   else
@@ -261,8 +300,10 @@ void Locator::correctPF(const vector<FieldMarker> markers) {
     w_fast += alpha_fast * (avgWeight - w_fast);
 
   // Calculate injection probability
+  // Calculate injection probability
   double w_diff = 1.0 - w_fast / w_slow;
-  double p_inject = std::min(0.2, std::max(0.0, w_diff));
+  p_inject = std::min(pfInjectionRatio, std::max(0.0, w_diff));
+  */
 
   // Resampling (Low Variance + Random Injection)
   double sqSum = 0;
@@ -279,10 +320,13 @@ void Locator::correctPF(const vector<FieldMarker> markers) {
     int i = 0;
 
     // Parameters for random injection
-    double xMin = -fieldDimensions.length / 2.0 - 1.0;
-    double xMax = 1.0;
-    double yMin = -fieldDimensions.width / 2.0 - 1.0;
-    double yMax = fieldDimensions.width / 2.0 + 1.0;
+    // Parameters for random injection
+    double xMin = -fieldDimensions.length / 2.0 - pfInitFieldMargin;
+    double xMax = pfInitOwnHalfOnly
+                      ? 1.0
+                      : (fieldDimensions.length / 2.0 + pfInitFieldMargin);
+    double yMin = -fieldDimensions.width / 2.0 - pfInitFieldMargin;
+    double yMax = fieldDimensions.width / 2.0 + pfInitFieldMargin;
 
     for (int m = 0; m < M; m++) {
       // Augmented MCL: Deciding whether to add random particle
@@ -310,14 +354,82 @@ void Locator::correctPF(const vector<FieldMarker> markers) {
 }
 
 Pose2D Locator::getEstimatePF() {
-  double meanX = 0, meanY = 0, meanThetaX = 0, meanThetaY = 0;
-  for (auto &p : pfParticles) {
-    meanX += p.x * p.weight;
-    meanY += p.y * p.weight;
-    meanThetaX += cos(p.theta) * p.weight;
-    meanThetaY += sin(p.theta) * p.weight;
+  if (pfParticles.empty())
+    return {0, 0, 0};
+
+  struct Cluster {
+    double totalWeight = 0;
+    double xSum = 0;
+    double ySum = 0;
+    double cosSum = 0;
+    double sinSum = 0;
+    double leaderX = 0;
+    double leaderY = 0;
+  };
+
+  std::vector<Cluster> clusters;
+  const double CLUSTER_DIST_THR = 1.5;
+
+  // Sort indices by weight descending to use high-weight particles as cluster
+  // seeds
+  std::vector<int> sortedIndices(pfParticles.size());
+  std::iota(sortedIndices.begin(), sortedIndices.end(), 0);
+  std::sort(sortedIndices.begin(), sortedIndices.end(), [&](int a, int b) {
+    return pfParticles[a].weight > pfParticles[b].weight;
+  });
+
+  // 1. Particle Clustering
+  for (int idx : sortedIndices) {
+    auto &p = pfParticles[idx];
+    bool added = false;
+    for (auto &c : clusters) {
+      double d = std::hypot(p.x - c.leaderX, p.y - c.leaderY);
+      if (d < CLUSTER_DIST_THR) {
+        c.totalWeight += p.weight;
+        c.xSum += p.x * p.weight;
+        c.ySum += p.y * p.weight;
+        c.cosSum += cos(p.theta) * p.weight;
+        c.sinSum += sin(p.theta) * p.weight;
+        added = true;
+        break;
+      }
+    }
+    if (!added) {
+      Cluster c;
+      c.totalWeight = p.weight;
+      c.xSum = p.x * p.weight;
+      c.ySum = p.y * p.weight;
+      c.cosSum = cos(p.theta) * p.weight;
+      c.sinSum = sin(p.theta) * p.weight;
+      c.leaderX = p.x;
+      c.leaderY = p.y;
+      clusters.push_back(c);
+    }
   }
-  return Pose2D{meanX, meanY, atan2(meanThetaY, meanThetaX)};
+
+  // 3. Choose the cluster with the largest weight
+  int bestClusterIdx = -1;
+  double maxWeight = -1.0;
+
+  for (int i = 0; i < clusters.size(); i++) {
+    if (clusters[i].totalWeight > maxWeight) {
+      maxWeight = clusters[i].totalWeight;
+      bestClusterIdx = i;
+    }
+  }
+
+  if (bestClusterIdx == -1)
+    return {0, 0, 0};
+
+  // 4. Pose = average of that cluster
+  auto &bestC = clusters[bestClusterIdx];
+  if (bestC.totalWeight > 0) {
+    return Pose2D{bestC.xSum / bestC.totalWeight,
+                  bestC.ySum / bestC.totalWeight,
+                  atan2(bestC.sinSum, bestC.cosSum)};
+  }
+
+  return {bestC.leaderX, bestC.leaderY, 0.0};
 }
 
 // Locator::setLog implementation
@@ -333,7 +445,7 @@ void Locator::logParticles(double time_sec) {
                  enableLog ? 1 : 0));
   // vector<rerun::Position2D> origins;
   // vector<rerun::Vector2D> vectors;
-  
+
   // for (const auto &p : pfParticles) {
   //   origins.push_back({static_cast<float>(p.x), static_cast<float>(p.y)});
   //   // Create a small arrow for orientation
@@ -365,26 +477,18 @@ void Locator::logParticles(double time_sec) {
     float x1 = x0 + len * std::cos(p.theta);
     float y1 = y0 + len * std::sin(p.theta);
 
-    lines.push_back({
-      {x0, -y0},
-      {x1, -y1}
-    });
+    lines.push_back({{x0, -y0}, {x1, -y1}});
   }
 
-  std::vector<rerun::Color> colors(
-    pfN, rerun::Color{0, 255, 255, 120}
-  );
+  std::vector<rerun::Color> colors(pfN, rerun::Color{0, 255, 255, 120});
 
   // 얇은 선
   std::vector<float> radii(pfN, 0.0025f);
 
-  logger->log(
-    "field/particles",
-    rerun::LineStrips2D(lines)
-      .with_colors(colors)
-      .with_radii(radii)
-      .with_draw_order(19.0)
-  );
+  logger->log("field/particles", rerun::LineStrips2D(lines)
+                                     .with_colors(colors)
+                                     .with_radii(radii)
+                                     .with_draw_order(19.0));
 }
 // 나중에 모드를 설정해서 initial particle 영역을 달리해야댐
 NodeStatus SelfLocateEnterField::tick() {
