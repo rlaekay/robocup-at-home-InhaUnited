@@ -1,0 +1,18 @@
+<root BTCPP_format="4">
+    <!-- 포함될 BT 파일들 -->
+    <include path="./subtrees/subtree_locate.xml" />
+    <include path="./subtrees/subtree_cam_find_and_track_ball.xml" />
+
+    <!-- 시작 -->
+    <BehaviorTree ID="MainTree">
+        <Sequence name="root">
+            <RunOnce><Script code="control_state=1" /></RunOnce>
+
+            <ReactiveSequence _while="control_state==1">
+                <ReactiveSequence _while="gc_game_state=='INITIAL'" name="Initial">
+                    <SelfLocateEnterField />
+                </ReactiveSequence>                    
+            </ReactiveSequence>
+        </Sequence>
+    </BehaviorTree>
+</root>

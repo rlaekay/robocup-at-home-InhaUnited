@@ -1,0 +1,9 @@
+<!-- 摄像头跟踪球 -->
+
+<root BTCPP_format="4" >
+  <BehaviorTree ID="Locate">
+     <Sequence name="root">
+        <SelfLocate mode="trust_direction" />
+     </Sequence>
+  </BehaviorTree>
+</root>
