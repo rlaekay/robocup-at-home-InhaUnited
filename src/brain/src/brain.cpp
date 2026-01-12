@@ -308,17 +308,17 @@ void Brain::loadConfig() {
 
 void Brain::tick() {
   // 输出 debug & log 相关信息
-  logDebugInfo();
+  // logDebugInfo();
   // logObstacleDistance(); // 计算量大, 仅需要时使用
-  logLags();
-  statusReport();
-  logStatusToConsole();
-  playSoundForFun();
+  // logLags();
+  // statusReport();
+  // logStatusToConsole();
+  // playSoundForFun();
   updateLogFile();
 
   updateMemory();
   handleSpecialStates();
-  handleCooperation();
+  // handleCooperation();
 
   tree->tick();
 }
@@ -361,240 +361,240 @@ void Brain::handleSpecialStates() {
   }
 }
 
-void Brain::handleCooperation() {
-  auto log_ = [=](string msg) {
-    log->setTimeNow();
-    log->log("debug/handleCooperation", rerun::TextLog(msg));
-  };
-  log_("handle cooperation");
+// void Brain::handleCooperation() {
+//   auto log_ = [=](string msg) {
+//     log->setTimeNow();
+//     log->log("debug/handleCooperation", rerun::TextLog(msg));
+//   };
+//   log_("handle cooperation");
 
-  const int CMD_COOLDOWN = 2000;
-  const int COM_TIMEOUT = 5000;
+//   const int CMD_COOLDOWN = 2000;
+//   const int COM_TIMEOUT = 5000;
 
-  int selfId = config->playerId;
-  int selfIdx = selfId - 1;
-  int numOfPlayers = config->numOfPlayers;
+//   int selfId = config->playerId;
+//   int selfIdx = selfId - 1;
+//   int numOfPlayers = config->numOfPlayers;
 
-  vector<int> aliveTmIdxs = {};
+//   vector<int> aliveTmIdxs = {};
 
-  data->tmImAlive = (data->penalty[selfIdx] == PENALTY_NONE) &&
-                    tree->getEntry<bool>("odom_calibrated");
-  updateCostToKick();
-  log_(format("ImAlive: %d, myCost: %.1f", data->tmImAlive, data->tmMyCost));
+//   data->tmImAlive = (data->penalty[selfIdx] == PENALTY_NONE) &&
+//                     tree->getEntry<bool>("odom_calibrated");
+//   updateCostToKick();
+//   log_(format("ImAlive: %d, myCost: %.1f", data->tmImAlive, data->tmMyCost));
 
-  int gcAliveCount = 0;
-  for (int i = 0; i < HL_MAX_NUM_PLAYERS; i++) {
-    if (data->penalty[i] == PENALTY_NONE) {
-      gcAliveCount++;
+//   int gcAliveCount = 0;
+//   for (int i = 0; i < HL_MAX_NUM_PLAYERS; i++) {
+//     if (data->penalty[i] == PENALTY_NONE) {
+//       gcAliveCount++;
 
-      int tmId = i + 1;
-      if (tmId == config->playerId)
-        continue;
+//       int tmId = i + 1;
+//       if (tmId == config->playerId)
+//         continue;
 
-      auto tmStatus = data->tmStatus[i];
-      log->setTimeNow();
-      auto color = 0x00FFFFFF;
-      if (!tmStatus.isAlive)
-        color = 0x006666FF;
-      else if (!tmStatus.isLead)
-        color = 0x00CCCCFF;
-      string label = format("ID: %d, Cost: %.1f", tmId, tmStatus.cost);
-      log->logRobot(format("field/teammate-%d", tmId).c_str(),
-                    tmStatus.robotPoseToField, color, label);
-      log->logBall(format("tm_ball-%d", tmId).c_str(), tmStatus.ballPosToField,
-                   tmStatus.ballDetected
-                       ? 0x00FFFFFF
-                       : (tmStatus.isAlive ? 0x006666FF : 0x003333FF),
-                   tmStatus.ballConfidence, tmStatus.ballLocationKnown);
-    }
-  }
-  log_(format("gcAliveCnt: %d", gcAliveCount));
+//       auto tmStatus = data->tmStatus[i];
+//       log->setTimeNow();
+//       auto color = 0x00FFFFFF;
+//       if (!tmStatus.isAlive)
+//         color = 0x006666FF;
+//       else if (!tmStatus.isLead)
+//         color = 0x00CCCCFF;
+//       string label = format("ID: %d, Cost: %.1f", tmId, tmStatus.cost);
+//       log->logRobot(format("field/teammate-%d", tmId).c_str(),
+//                     tmStatus.robotPoseToField, color, label);
+//       log->logBall(format("tm_ball-%d", tmId).c_str(), tmStatus.ballPosToField,
+//                    tmStatus.ballDetected
+//                        ? 0x00FFFFFF
+//                        : (tmStatus.isAlive ? 0x006666FF : 0x003333FF),
+//                    tmStatus.ballConfidence, tmStatus.ballLocationKnown);
+//     }
+//   }
+//   log_(format("gcAliveCnt: %d", gcAliveCount));
 
-  for (int i = 0; i < HL_MAX_NUM_PLAYERS; i++) {
-    if (i == selfIdx)
-      continue;
+//   for (int i = 0; i < HL_MAX_NUM_PLAYERS; i++) {
+//     if (i == selfIdx)
+//       continue;
 
-    if (data->penalty[i] != PENALTY_NONE ||
-        msecsSince(data->tmStatus[i].timeLastCom) > COM_TIMEOUT) {
-      data->tmStatus[i].isAlive = false;
-      data->tmStatus[i].isLead = false;
-    }
+//     if (data->penalty[i] != PENALTY_NONE ||
+//         msecsSince(data->tmStatus[i].timeLastCom) > COM_TIMEOUT) {
+//       data->tmStatus[i].isAlive = false;
+//       data->tmStatus[i].isLead = false;
+//     }
 
-    if (data->tmStatus[i].isAlive) {
-      aliveTmIdxs.push_back(i);
-      log->setTimeNow();
-      log->log(format("debug/tm_cost_scalar_%d", i + 1),
-               rerun::Scalar(data->tmStatus[i].cost));
-      log->log(format("debug/tm_lead_scalar_%d", i + 1),
-               rerun::Scalar(data->tmStatus[i].isLead));
-    }
-  }
-  log_(format("alive TM Count: %d", aliveTmIdxs.size()));
+//     if (data->tmStatus[i].isAlive) {
+//       aliveTmIdxs.push_back(i);
+//       log->setTimeNow();
+//       log->log(format("debug/tm_cost_scalar_%d", i + 1),
+//                rerun::Scalar(data->tmStatus[i].cost));
+//       log->log(format("debug/tm_lead_scalar_%d", i + 1),
+//                rerun::Scalar(data->tmStatus[i].isLead));
+//     }
+//   }
+//   log_(format("alive TM Count: %d", aliveTmIdxs.size()));
 
-  // log 当前 alive 队友的信息
-  log_(format("Self: cost: %.1f, isLead: %d", data->tmMyCost, data->tmImLead));
+//   // log 当前 alive 队友的信息
+//   log_(format("Self: cost: %.1f, isLead: %d", data->tmMyCost, data->tmImLead));
 
-  static rclcpp::Time lastTmBallPosTime = get_clock()->now();
-  const double TM_BALL_TIMEOUT = 1000.;
-  const double RANGE_THRESHOLD = config->tmBallDistThreshold;
-  int trustedTMIdx = -1;
-  double minRange = 1e6;
-  log_(format("Find ball info among %d alive TMs", aliveTmIdxs.size()));
-  for (int i = 0; i < aliveTmIdxs.size(); i++) {
-    auto status = data->tmStatus[aliveTmIdxs[i]];
-    log_(format("TM %d, ballDetected: %d, ballRange: %.1f", i + 1,
-                status.ballDetected, status.ballRange));
-    if (status.ballDetected && status.ballRange < minRange) {
-      log_(format("tm ball range(%.1f) < minRange(%.1f)", status.ballRange,
-                  minRange));
-      double dist = norm(status.ballPosToField.x - data->robotPoseToField.x,
-                         status.ballPosToField.y - data->robotPoseToField.y);
-      if (dist > RANGE_THRESHOLD) {
-        log_(format(
-            "tm ball dist to me(%.1f) > threshold(%.1f), TM %d can be trusted",
-            dist, RANGE_THRESHOLD, i + 1));
-        minRange = status.ballRange;
-        trustedTMIdx = aliveTmIdxs[i];
-      } else {
-        log_(format("tm ball dist to me(%.1f) < threshold(%.1f), TM %d can NOT "
-                    "be trusted",
-                    dist, RANGE_THRESHOLD, i + 1));
-      }
-    }
-  }
-  if (trustedTMIdx >= 0) {
-    log_(format("Reliable tm ball found. PlayerID = %d", trustedTMIdx + 1));
-    data->tmBall.posToField = data->tmStatus[trustedTMIdx].ballPosToField;
-    updateRelativePos(data->tmBall);
+//   static rclcpp::Time lastTmBallPosTime = get_clock()->now();
+//   const double TM_BALL_TIMEOUT = 1000.;
+//   const double RANGE_THRESHOLD = config->tmBallDistThreshold;
+//   int trustedTMIdx = -1;
+//   double minRange = 1e6;
+//   log_(format("Find ball info among %d alive TMs", aliveTmIdxs.size()));
+//   for (int i = 0; i < aliveTmIdxs.size(); i++) {
+//     auto status = data->tmStatus[aliveTmIdxs[i]];
+//     log_(format("TM %d, ballDetected: %d, ballRange: %.1f", i + 1,
+//                 status.ballDetected, status.ballRange));
+//     if (status.ballDetected && status.ballRange < minRange) {
+//       log_(format("tm ball range(%.1f) < minRange(%.1f)", status.ballRange,
+//                   minRange));
+//       double dist = norm(status.ballPosToField.x - data->robotPoseToField.x,
+//                          status.ballPosToField.y - data->robotPoseToField.y);
+//       if (dist > RANGE_THRESHOLD) {
+//         log_(format(
+//             "tm ball dist to me(%.1f) > threshold(%.1f), TM %d can be trusted",
+//             dist, RANGE_THRESHOLD, i + 1));
+//         minRange = status.ballRange;
+//         trustedTMIdx = aliveTmIdxs[i];
+//       } else {
+//         log_(format("tm ball dist to me(%.1f) < threshold(%.1f), TM %d can NOT "
+//                     "be trusted",
+//                     dist, RANGE_THRESHOLD, i + 1));
+//       }
+//     }
+//   }
+//   if (trustedTMIdx >= 0) {
+//     log_(format("Reliable tm ball found. PlayerID = %d", trustedTMIdx + 1));
+//     data->tmBall.posToField = data->tmStatus[trustedTMIdx].ballPosToField;
+//     updateRelativePos(data->tmBall);
 
-    tree->setEntry<bool>("tm_ball_pos_reliable", true);
-    lastTmBallPosTime = get_clock()->now();
-    if (!tree->getEntry<bool>("ball_location_known")) {
-      log_("update ball.posToField");
-      data->ball.posToField = data->tmBall.posToField;
-      updateRelativePos(data->ball);
-    }
-  } else {
-    log_("TM reported NO BALL or can not be trusted");
-    if (msecsSince(lastTmBallPosTime) > TM_BALL_TIMEOUT) {
-      log_("TM ball timeout reached");
-      tree->setEntry<bool>("tm_ball_pos_reliable", false);
-    }
-  }
+//     tree->setEntry<bool>("tm_ball_pos_reliable", true);
+//     lastTmBallPosTime = get_clock()->now();
+//     if (!tree->getEntry<bool>("ball_location_known")) {
+//       log_("update ball.posToField");
+//       data->ball.posToField = data->tmBall.posToField;
+//       updateRelativePos(data->ball);
+//     }
+//   } else {
+//     log_("TM reported NO BALL or can not be trusted");
+//     if (msecsSince(lastTmBallPosTime) > TM_BALL_TIMEOUT) {
+//       log_("TM ball timeout reached");
+//       tree->setEntry<bool>("tm_ball_pos_reliable", false);
+//     }
+//   }
 
-  bool switchRole;
-  get_parameter("strategy.cooperation.enable_role_switch", switchRole);
-  if (switchRole) {
-    if (data->penalty[selfIdx] == PENALTY_NONE) {
-      if (gcAliveCount < numOfPlayers) {
-        log_("Not full team. I must be Striker");
-        tree->setEntry<string>("player_role", "striker");
-      }
-    } else {
-      if (gcAliveCount == numOfPlayers - 1) {
-        log_("I am only on under penalty, I must be goal keeper");
-        tree->setEntry<string>("player_role", "goal_keeper");
-      }
-    }
-  }
+//   bool switchRole;
+//   get_parameter("strategy.cooperation.enable_role_switch", switchRole);
+//   if (switchRole) {
+//     if (data->penalty[selfIdx] == PENALTY_NONE) {
+//       if (gcAliveCount < numOfPlayers) {
+//         log_("Not full team. I must be Striker");
+//         tree->setEntry<string>("player_role", "striker");
+//       }
+//     } else {
+//       if (gcAliveCount == numOfPlayers - 1) {
+//         log_("I am only on under penalty, I must be goal keeper");
+//         tree->setEntry<string>("player_role", "goal_keeper");
+//       }
+//     }
+//   }
 
-  if (tree->getEntry<string>("gc_game_state") == "INITIAL") {
-    tree->setEntry<string>("player_role", config->playerRole);
-  }
+//   if (tree->getEntry<string>("gc_game_state") == "INITIAL") {
+//     tree->setEntry<string>("player_role", config->playerRole);
+//   }
 
-  double tmMinCost = 1e5;
-  for (int i = 0; i < aliveTmIdxs.size(); i++) {
-    int tmIdx = aliveTmIdxs[i];
-    auto tmStatus = data->tmStatus[tmIdx];
-    if (tmStatus.cost < tmMinCost)
-      tmMinCost = tmStatus.cost;
-  }
-  double BALL_CONTROL_COST_THRESHOLD = 3.0;
-  get_parameter("strategy.cooperation.ball_control_cost_threshold",
-                BALL_CONTROL_COST_THRESHOLD);
+//   double tmMinCost = 1e5;
+//   for (int i = 0; i < aliveTmIdxs.size(); i++) {
+//     int tmIdx = aliveTmIdxs[i];
+//     auto tmStatus = data->tmStatus[tmIdx];
+//     if (tmStatus.cost < tmMinCost)
+//       tmMinCost = tmStatus.cost;
+//   }
+//   double BALL_CONTROL_COST_THRESHOLD = 3.0;
+//   get_parameter("strategy.cooperation.ball_control_cost_threshold",
+//                 BALL_CONTROL_COST_THRESHOLD);
 
-  if (tmMinCost < BALL_CONTROL_COST_THRESHOLD && data->tmMyCost > tmMinCost) {
+//   if (tmMinCost < BALL_CONTROL_COST_THRESHOLD && data->tmMyCost > tmMinCost) {
 
-    data->tmImLead = false;
-    tree->setEntry<bool>("is_lead", false);
-    log_("I am not lead");
+//     data->tmImLead = false;
+//     tree->setEntry<bool>("is_lead", false);
+//     log_("I am not lead");
 
-  } else {
-    data->tmImLead = true;
-    tree->setEntry<bool>("is_lead", true);
-    log_("I am Lead");
-  }
-  log_(format("tmMinCost: %.1f, myCost: %.1f", tmMinCost, data->tmMyCost));
+//   } else {
+//     data->tmImLead = true;
+//     tree->setEntry<bool>("is_lead", true);
+//     log_("I am Lead");
+//   }
+//   log_(format("tmMinCost: %.1f, myCost: %.1f", tmMinCost, data->tmMyCost));
 
-  if (data->tmImAlive &&
-      tree->getEntry<string>("player_role") == "goal_keeper" &&
-      data->tmImLead && msecsSince(data->tmLastCmdChangeTime) > CMD_COOLDOWN) {
-    auto distToGoal = [=](Pose2D pose) {
-      return norm(pose.x + config->fieldDimensions.length / 2.0, pose.y);
-    };
-    double maxDist = 0.0;
-    double minDist = 1e6;
-    int minIndex = -1;
-    double myDist = distToGoal(data->robotPoseToField);
-    for (int i = 0; i < aliveTmIdxs.size(); i++) {
-      int tmIdx = aliveTmIdxs[i];
-      auto tmPose = data->tmStatus[tmIdx].robotPoseToField;
-      double dist = distToGoal(tmPose);
-      if (dist > maxDist)
-        maxDist = dist;
-      if (dist < minDist) {
-        minIndex = tmIdx;
-        minDist = dist;
-      }
-    }
-    if (minIndex >= 0 && myDist > maxDist) {
-      data->tmLastCmdChangeTime = get_clock()->now();
-      data->tmMyCmd = 10 + minIndex + 1;
-      data->tmCmdId += 1;
-      data->tmMyCmdId = data->tmCmdId;
-      tree->setEntry<string>("player_role", "striker");
-      log_(format("goalie: i am too far from goal, i ask player %d to attack",
-                  minIndex + 1));
-    } else {
-      log_(format(
-          "goalie: i am close enough to goal, no need to attack, my dist: %.2f",
-          myDist));
-    }
-  }
+//   if (data->tmImAlive &&
+//       tree->getEntry<string>("player_role") == "goal_keeper" &&
+//       data->tmImLead && msecsSince(data->tmLastCmdChangeTime) > CMD_COOLDOWN) {
+//     auto distToGoal = [=](Pose2D pose) {
+//       return norm(pose.x + config->fieldDimensions.length / 2.0, pose.y);
+//     };
+//     double maxDist = 0.0;
+//     double minDist = 1e6;
+//     int minIndex = -1;
+//     double myDist = distToGoal(data->robotPoseToField);
+//     for (int i = 0; i < aliveTmIdxs.size(); i++) {
+//       int tmIdx = aliveTmIdxs[i];
+//       auto tmPose = data->tmStatus[tmIdx].robotPoseToField;
+//       double dist = distToGoal(tmPose);
+//       if (dist > maxDist)
+//         maxDist = dist;
+//       if (dist < minDist) {
+//         minIndex = tmIdx;
+//         minDist = dist;
+//       }
+//     }
+//     if (minIndex >= 0 && myDist > maxDist) {
+//       data->tmLastCmdChangeTime = get_clock()->now();
+//       data->tmMyCmd = 10 + minIndex + 1;
+//       data->tmCmdId += 1;
+//       data->tmMyCmdId = data->tmCmdId;
+//       tree->setEntry<string>("player_role", "striker");
+//       log_(format("goalie: i am too far from goal, i ask player %d to attack",
+//                   minIndex + 1));
+//     } else {
+//       log_(format(
+//           "goalie: i am close enough to goal, no need to attack, my dist: %.2f",
+//           myDist));
+//     }
+//   }
 
-  auto cmd = data->tmReceivedCmd;
-  if (cmd != 0) {
-    log_(format("received cmd %d from teammate", cmd));
-    if (cmd > 10 && cmd < 20) {
-      log_("goalie wants to attack");
-      int newGoalieId = cmd - 10;
-      if (newGoalieId == selfId) {
-        log_("i become goalie");
-        tree->setEntry<string>("player_role", "goal_keeper");
-        speak("i become goalie", true);
-      } else {
-        log_(format("teammate %d becomes goalie", newGoalieId));
-      }
-    } else {
-      log_(format("unknown cmd %d from teammate", cmd));
-    }
+//   auto cmd = data->tmReceivedCmd;
+//   if (cmd != 0) {
+//     log_(format("received cmd %d from teammate", cmd));
+//     if (cmd > 10 && cmd < 20) {
+//       log_("goalie wants to attack");
+//       int newGoalieId = cmd - 10;
+//       if (newGoalieId == selfId) {
+//         log_("i become goalie");
+//         tree->setEntry<string>("player_role", "goal_keeper");
+//         speak("i become goalie", true);
+//       } else {
+//         log_(format("teammate %d becomes goalie", newGoalieId));
+//       }
+//     } else {
+//       log_(format("unknown cmd %d from teammate", cmd));
+//     }
 
-    data->tmReceivedCmd = 0;
-  }
+//     data->tmReceivedCmd = 0;
+//   }
 
-  tree->setEntry<bool>("is_lead", data->tmImLead);
+//   tree->setEntry<bool>("is_lead", data->tmImLead);
 
-  if ((tree->getEntry<string>("gc_game_state") == "READY" ||
-       tree->getEntry<string>("gc_game_sub_state") == "GET_READY") &&
-      gcAliveCount == numOfPlayers) {
+//   if ((tree->getEntry<string>("gc_game_state") == "READY" ||
+//        tree->getEntry<string>("gc_game_sub_state") == "GET_READY") &&
+//       gcAliveCount == numOfPlayers) {
 
-    tree->setEntry<string>("player_role", config->playerRole);
-    log_(format("all teammates on field. Back to initial role: %s",
-                config->playerRole.c_str()));
-  }
+//     tree->setEntry<string>("player_role", config->playerRole);
+//     log_(format("all teammates on field. Back to initial role: %s",
+//                 config->playerRole.c_str()));
+//   }
 
-  return;
-}
+//   return;
+// }
 
 void Brain::updateMemory() {
   updateBallMemory();
@@ -758,84 +758,84 @@ double Brain::calcKickDir(double goalPostMargin) {
   return theta_r;
 }
 
-void Brain::updateCostToKick() {
-  auto log_ = [=](string msg) {
-    log->setTimeNow();
-    log->log("debug/updateCostToKick", rerun::TextLog(msg));
-  };
-  double cost = 0.;
+// void Brain::updateCostToKick() {
+//   auto log_ = [=](string msg) {
+//     log->setTimeNow();
+//     log->log("debug/updateCostToKick", rerun::TextLog(msg));
+//   };
+//   double cost = 0.;
 
-  // if (!data->ballDetected) cost += 2.0;
-  double secsSinceBallDet = msecsSince(data->ball.timePoint) / 1000;
-  cost += secsSinceBallDet;
-  log_(format("ball not dectect cost: %.1f", secsSinceBallDet));
+//   // if (!data->ballDetected) cost += 2.0;
+//   double secsSinceBallDet = msecsSince(data->ball.timePoint) / 1000;
+//   cost += secsSinceBallDet;
+//   log_(format("ball not dectect cost: %.1f", secsSinceBallDet));
 
-  if (!tree->getEntry<bool>("ball_location_known")) {
-    cost += 5.0;
-    log_(format("ball lost cost: %.1f", 5.0));
-  }
+//   if (!tree->getEntry<bool>("ball_location_known")) {
+//     cost += 5.0;
+//     log_(format("ball lost cost: %.1f", 5.0));
+//   }
 
-  cost += data->ball.range;
-  log_(format("ball range cost: %.1f", data->ball.range));
+//   cost += data->ball.range;
+//   log_(format("ball range cost: %.1f", data->ball.range));
 
-  if (distToObstacle(data->ball.yawToRobot) < 1.5) {
-    log_(format("obstacle cost: %.1f", 2.0));
-    cost += 2.0;
-  }
+//   if (distToObstacle(data->ball.yawToRobot) < 1.5) {
+//     log_(format("obstacle cost: %.1f", 2.0));
+//     cost += 2.0;
+//   }
 
-  cost += fabs(data->ball.yawToRobot) / 1.0;
-  log_(format("ball yaw cost: %.1f", fabs(data->ball.yawToRobot) / 1.0));
+//   cost += fabs(data->ball.yawToRobot) / 1.0;
+//   log_(format("ball yaw cost: %.1f", fabs(data->ball.yawToRobot) / 1.0));
 
-  int selfIdx = config->playerId - 1;
-  for (int i = 0; i < HL_MAX_NUM_PLAYERS; i++) {
-    if (i == selfIdx)
-      continue;
+//   int selfIdx = config->playerId - 1;
+//   for (int i = 0; i < HL_MAX_NUM_PLAYERS; i++) {
+//     if (i == selfIdx)
+//       continue;
 
-    auto status = data->tmStatus[i];
-    if (!status.isAlive)
-      continue;
+//     auto status = data->tmStatus[i];
+//     if (!status.isAlive)
+//       continue;
 
-    double theta_tm2ball =
-        atan2(status.ballPosToField.y - status.robotPoseToField.y,
-              status.ballPosToField.x - status.robotPoseToField.x);
-    double range_tm2ball =
-        norm(status.ballPosToField.y - status.robotPoseToField.y,
-             status.ballPosToField.x - status.robotPoseToField.x);
-    double theta_me2ball = data->robotBallAngleToField;
-    double range_me2ball = data->ball.range;
-    double deltaTheta = fabs(toPInPI(theta_tm2ball - theta_me2ball));
+//     double theta_tm2ball =
+//         atan2(status.ballPosToField.y - status.robotPoseToField.y,
+//               status.ballPosToField.x - status.robotPoseToField.x);
+//     double range_tm2ball =
+//         norm(status.ballPosToField.y - status.robotPoseToField.y,
+//              status.ballPosToField.x - status.robotPoseToField.x);
+//     double theta_me2ball = data->robotBallAngleToField;
+//     double range_me2ball = data->ball.range;
+//     double deltaTheta = fabs(toPInPI(theta_tm2ball - theta_me2ball));
 
-    const double BUMP_DIST = 1.0;
-    if (range_tm2ball < range_me2ball &&
-        sin(deltaTheta) * range_tm2ball < BUMP_DIST) {
-      cost += 2.0;
-      log_(format("bump cost: %.1f", 2.0));
-    }
-  }
+//     const double BUMP_DIST = 1.0;
+//     if (range_tm2ball < range_me2ball &&
+//         sin(deltaTheta) * range_tm2ball < BUMP_DIST) {
+//       cost += 2.0;
+//       log_(format("bump cost: %.1f", 2.0));
+//     }
+//   }
 
-  cost +=
-      fabs(toPInPI(data->kickDir - data->robotBallAngleToField)) * 0.4 / 0.3;
-  log_(format("ajust cost: %.1f",
-              fabs(toPInPI(data->kickDir - data->robotBallAngleToField)) * 0.4 /
-                  0.3));
+//   cost +=
+//       fabs(toPInPI(data->kickDir - data->robotBallAngleToField)) * 0.4 / 0.3;
+//   log_(format("ajust cost: %.1f",
+//               fabs(toPInPI(data->kickDir - data->robotBallAngleToField)) * 0.4 /
+//                   0.3));
 
-  if (data->recoveryState == RobotRecoveryState::HAS_FALLEN) {
-    cost += 15.0;
-    log_(format("fall cost: %.1f", 15.0));
-  }
+//   if (data->recoveryState == RobotRecoveryState::HAS_FALLEN) {
+//     cost += 15.0;
+//     log_(format("fall cost: %.1f", 15.0));
+//   }
 
-  if (!tree->getEntry<bool>("odom_calibrated")) {
-    cost += 100;
-    log_(format("localization cost: %.1f", 100.0));
-  }
+//   if (!tree->getEntry<bool>("odom_calibrated")) {
+//     cost += 100;
+//     log_(format("localization cost: %.1f", 100.0));
+//   }
 
-  double lastCost = data->tmMyCost;
-  data->tmMyCost = lastCost * 0.5 + cost * 0.5;
-  log_(format("lastCost: %.1f, newCost: %.1f, smoothCost: %.1f", lastCost, cost,
-              data->tmMyCost));
+//   double lastCost = data->tmMyCost;
+//   data->tmMyCost = lastCost * 0.5 + cost * 0.5;
+//   log_(format("lastCost: %.1f, newCost: %.1f, smoothCost: %.1f", lastCost, cost,
+//               data->tmMyCost));
 
-  return;
-}
+//   return;
+// }
 
 bool Brain::isAngleGood(double goalPostMargin, string type) {
   double angle = 0;
