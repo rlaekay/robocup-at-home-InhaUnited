@@ -156,7 +156,7 @@ void Brain::init() {
                        {config->pfAlpha1, config->pfAlpha2, config->pfAlpha3, config->pfAlpha4}, config->pfAlphaSlow, config->pfAlphaFast,
                        config->pfInjectionRatio);
 
-
+  locator->setLog(&log->stream());
 
   tree->init();
 

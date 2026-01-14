@@ -414,7 +414,7 @@ int Locator::genInitialParticles(int num) {
   hypos.col(1) = hypos.col(1) * (ymax - ymin) / 2 + (ymin + ymax) / 2;
   hypos.col(2) = hypos.col(2) * (thetamax - thetamin) / 2 + (thetamin + thetamax) / 2;
 
-  logParticles();
+  // logParticles();
 
   return 0;
 }
