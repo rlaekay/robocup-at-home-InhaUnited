@@ -61,10 +61,8 @@ void Locator::init(FieldDimensions fd, int minMarkerCntParam, double residualTol
 }
 
 void Locator::globalInitPF(Pose2D currentOdom) {
-  // fieldDimensions.width and length are full dimensions
-  // fieldDimensions.width and length are full dimensions
-  double xMin = -fieldDimensions.length / 2.0 - pfInitFieldMargin; // Slight margin outside field
-  double xMax = pfInitOwnHalfOnly ? 1.0 : (fieldDimensions.length / 2.0 + pfInitFieldMargin);
+  double xMin = -fieldDimensions.length / 2.0 - pfInitFieldMargin; 
+  double xMax = pfInitFieldMargin;
   double yMin = -fieldDimensions.width / 2.0 - pfInitFieldMargin;
   double yMax = fieldDimensions.width / 2.0 + pfInitFieldMargin;
   double thetaMin = -M_PI;
@@ -628,15 +626,15 @@ LocateResult Locator::locateRobot(vector<FieldMarker> markers_r, PoseBox2D const
   return res;
 }
 
-void Locator::logParticles() {
-  if (!enableLog) return;
-  vector<rerun::Position2D> points;
-  for (int i = 0; i < hypos.rows(); i++) {
-    auto hypo = hypos.row(i);
-    points.push_back(rerun::Position2D{static_cast<float>(hypo(0)), static_cast<float>(hypo(1))});
-  }
-  log.log("field/hypos", rerun::Points2D(points).with_draw_order(20.0).with_colors({rerun::Color{255, 0, 0, 255}}).with_radii({0.05}).with_draw_order(20));
-}
+// void Locator::logParticles() {
+//   if (!enableLog) return;
+//   vector<rerun::Position2D> points;
+//   for (int i = 0; i < hypos.rows(); i++) {
+//     auto hypo = hypos.row(i);
+//     points.push_back(rerun::Position2D{static_cast<float>(hypo(0)), static_cast<float>(hypo(1))});
+//   }
+//   log.log("field/hypos", rerun::Points2D(points).with_draw_order(20.0).with_colors({rerun::Color{255, 0, 0, 255}}).with_radii({0.05}).with_draw_order(20));
+// }
 
 
 
