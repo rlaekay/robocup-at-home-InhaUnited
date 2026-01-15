@@ -109,7 +109,7 @@ void Locator::globalInitPF(Pose2D currentOdom) {
   double thetaMax = M_PI;
 
   isPFInitialized = true;
-  lastPFOdomPose = currentOdom; // Initialize lastPFOdomPose
+  lastPFOdomPose = currentOdom;
 
   int num = pfNumParticles;
   pfParticles.resize(num);
@@ -118,7 +118,6 @@ void Locator::globalInitPF(Pose2D currentOdom) {
   for (int i = 0; i < num; i++) {
     pfParticles[i].x = xMin + ((double)rand() / RAND_MAX) * (xMax - xMin);
     pfParticles[i].y = yMin + ((double)rand() / RAND_MAX) * (yMax - yMin);
-    // Face Y-Axis with +/- 30 degrees offset
     double thetaSpread = deg2rad(30.0);
     double thetaCenter;
 
@@ -131,7 +130,6 @@ void Locator::globalInitPF(Pose2D currentOdom) {
     pfParticles[i].weight = 1.0 / num;
   }
 
-  // Reset Augmented MCL weights
   w_slow = 0.0;
   w_fast = 0.0;
 
@@ -146,7 +144,7 @@ void Locator::predictPF(Pose2D currentOdomPose) {
 
   if (!isPFInitialized) {
     prtWarn("[PF][predictPF] NOT initialized -> only update lastPFOdomPose");
-    lastPFOdomPose = currentOdomPose; //(0,0,0)에서 점프 방지
+    lastPFOdomPose = currentOdomPose; // (0,0,0)에서 점프 방지
     return;
   }
 
@@ -154,7 +152,7 @@ void Locator::predictPF(Pose2D currentOdomPose) {
   double dy = currentOdomPose.y - lastPFOdomPose.y;
   double dtheta = toPInPI(currentOdomPose.theta - lastPFOdomPose.theta);
 
-  // Zero-Motion Gate
+  // Zero Motion Gate
   double transDist = sqrt(dx * dx + dy * dy);
   double rotDist = fabs(dtheta);
 
@@ -178,7 +176,7 @@ void Locator::predictPF(Pose2D currentOdomPose) {
   double alpha4 = pfAlpha4;
 
   for (auto &p : pfParticles) {
-    double n_rot1 = rot1 + (gaussianRandom(0, alpha1 * fabs(rot1) + alpha2 * trans));
+    double n_rot1 = rot1 + (gaussianRandom(0, alpha1d * fabs(rot1) + alpha2 * trans));
     double n_trans = trans + (gaussianRandom(0, alpha3 * trans + alpha4 * (fabs(rot1) + fabs(rot2))));
     double n_rot2 = rot2 + (gaussianRandom(0, alpha1 * fabs(rot2) + alpha2 * trans));
 
@@ -256,9 +254,7 @@ void Locator::correctPF(const vector<FieldMarker> markers) {
   p_inject = std::min(pfInjectionRatio, std::max(0.0, w_diff));
   */
 
-  // Resampling (Low Variance + Random Injection)
-  // Only resample if robot is moving or user forced it
-  if (pfResampleWhenStopped) {
+  if (isRobotMoving || pfResampleWhenStopped) {
     double sqSum = 0;
     for (auto &p : pfParticles)
       sqSum += p.weight * p.weight;
@@ -272,14 +268,14 @@ void Locator::correctPF(const vector<FieldMarker> markers) {
       double c = pfParticles[0].weight;
       int i = 0;
 
-      // Parameters for random injection
+      // for random injection
       double xMin = -fieldDimensions.length / 2.0 - pfInitFieldMargin;
       double xMax = pfInitOwnHalfOnly ? 1.0 : (fieldDimensions.length / 2.0 + pfInitFieldMargin);
       double yMin = -fieldDimensions.width / 2.0 - pfInitFieldMargin;
       double yMax = fieldDimensions.width / 2.0 + pfInitFieldMargin;
 
       for (int m = 0; m < M; m++) {
-        // Augmented MCL: Deciding whether to add random particle
+
         if (((double)rand() / RAND_MAX) < p_inject) {
           Particle newP;
           newP.x = xMin + ((double)rand() / RAND_MAX) * (xMax - xMin);
@@ -288,7 +284,7 @@ void Locator::correctPF(const vector<FieldMarker> markers) {
           newP.weight = 1.0 / M;
           newParticles.push_back(newP);
         } else {
-          // Standard Low Variance Sampling
+          // Low Variance Sampling
           double u = r + (double)m / M;
           while (u > c && i < M - 1) {
             i++;
@@ -315,7 +311,7 @@ Pose2D Locator::getEstimatePF() {
     double sinSum = 0;
     double leaderX = 0;
     double leaderY = 0;
-    double leaderTheta = 0; // Added leaderTheta
+    double leaderTheta = 0;
   };
 
   std::vector<Cluster> clusters;
@@ -333,7 +329,7 @@ Pose2D Locator::getEstimatePF() {
       // 게이팅
       double d = std::hypot(p.x - c.leaderX, p.y - c.leaderY);
       double dTheta = std::fabs(toPInPI(p.theta - c.leaderTheta));
-
+      // weighted sum 구하기
       if (d < pfClusterDistThr && dTheta < pfClusterThetaThr) {
         c.totalWeight += p.weight;
         c.xSum += p.x * p.weight;
@@ -344,6 +340,7 @@ Pose2D Locator::getEstimatePF() {
         break;
       }
     }
+    // cluster에 포함되지 않았다면 다른 클러스터의 대장이 됨
     if (!added) {
       Cluster c;
       c.totalWeight = p.weight;
@@ -353,12 +350,12 @@ Pose2D Locator::getEstimatePF() {
       c.sinSum += sin(p.theta) * p.weight;
       c.leaderX = p.x;
       c.leaderY = p.y;
-      c.leaderTheta = p.theta; // Initialize leaderTheta
+      c.leaderTheta = p.theta;
       clusters.push_back(c);
     }
   }
 
-  // 3. 가장 큰 가중치를 가진 클러스터 선택
+  // 가장 큰 가중치 합을 가진 클러스터 선택
   int bestClusterIdx = -1;
   double maxWeight = -1.0;
 
@@ -371,7 +368,7 @@ Pose2D Locator::getEstimatePF() {
 
   if (bestClusterIdx == -1) return {0, 0, 0};
 
-  // 4. 가중평균
+  // expected value
   Pose2D rawEstPose;
   auto &bestC = clusters[bestClusterIdx];
   if (bestC.totalWeight > 0) {
@@ -380,16 +377,13 @@ Pose2D Locator::getEstimatePF() {
     rawEstPose = Pose2D{bestC.leaderX, bestC.leaderY, bestC.leaderTheta};
   }
 
-  // 5. EMA smoothing
+  // EMA smoothing
   if (!hasSmoothedPose) {
     smoothedPose = rawEstPose;
     hasSmoothedPose = true;
   } else {
-    // Smooth X
     smoothedPose.x = pfSmoothAlpha * rawEstPose.x + (1.0 - pfSmoothAlpha) * smoothedPose.x;
-    // Smooth Y
     smoothedPose.y = pfSmoothAlpha * rawEstPose.y + (1.0 - pfSmoothAlpha) * smoothedPose.y;
-    // Smooth Theta (handle angle wrapping)
     double diffTheta = toPInPI(rawEstPose.theta - smoothedPose.theta);
     smoothedPose.theta = toPInPI(smoothedPose.theta + pfSmoothAlpha * diffTheta);
   }
@@ -397,7 +391,6 @@ Pose2D Locator::getEstimatePF() {
   return smoothedPose;
 }
 
-// Locator::setLog implementation
 void Locator::setLog(rerun::RecordingStream *stream) { logger = stream; }
 
 void Locator::logParticles(double time_sec) {
