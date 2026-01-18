@@ -63,7 +63,7 @@ brain_node:
       pf_zeromotion_rot_thresh: 0.05 # 라디안
 
 
-      pf_sensor_noise: 0.3
+      pf_sensor_noise: 0.6
 
       pf_alpha_1: 0.001 #rot -> rot
       pf_alpha_2: 0.001 #trans -> rot
